@@ -281,6 +281,12 @@ class TrainOptions(object):
             help="probability update interval of the adaptive augmentation",
         )
 
+        self.parser.add_argument(
+            "--randomize_from_n_target_pictures",
+            type=bool,
+            default=True,
+            help="использовать случайные картинки из папки",
+        )
 
     def parse(self):
         opts = self.parser.parse_args()

@@ -1,0 +1,23 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "zsgan",
+            "type": "python",
+            "request": "launch",
+            "program": "ZSSGAN/train.py",
+            "console": "integratedTerminal",
+            "args": ["--size", "1024", "--batch", "20", "--n_sample", "3", "--output_dir", "out", "--lr", "0.001", "--frozen_gen_ckpt", "pretrained/stylegan2-ffhq-config-f.pt", "--iter", "81", "--auto_layer_k", "18", "--auto_layer_iters", "1", "--auto_layer_batch", "8", "--output_interval", "20", "--clip_models", "\"ViT-B/32\" \"ViT-B/16\"", "--clip_model_weights", "1.0 1.0", "--mixing", "0.0", "--save_interval", "20", "--source_class", "photo", "--target_class", "black sketch portrait" ]
+        },
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        }
+    ]
+}

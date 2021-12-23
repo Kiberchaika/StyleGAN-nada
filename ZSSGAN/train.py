@@ -31,6 +31,11 @@ import argparse
 import os
 import numpy as np
 
+import os, sys
+if sys.platform.startswith('win'):
+    output = os.popen('"{}" && set'.format("%ProgramFiles(x86)%/Microsoft Visual Studio/2017/Community/VC/Auxiliary/Build/vcvars64.bat")).read()
+    print(output)
+
 import torch
 
 from tqdm import tqdm
@@ -48,6 +53,7 @@ from options.train_options import TrainOptions
 #TODO convert these to proper args
 SAVE_SRC = False
 SAVE_DST = True
+
 
 def train(args):
 
