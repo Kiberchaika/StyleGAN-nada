@@ -26,8 +26,12 @@
                 "--clip_model_weights", "1.0", "1.0", 
                 "--mixing", "0.0", 
                 "--save_interval", "20", 
-                "--source_class", "photo", 
-                "--target_class", "black sketch portrait" ]
+                //"--source_class", "photo", 
+                //"--target_class", "black sketch portrait" 
+                "--style_img_dir", "data",
+                "--img2img_batch", "1",
+                "--randomize_from_n_target_pictures", "true",
+            ]
         },
         {
             "name": "Python: Current File",
