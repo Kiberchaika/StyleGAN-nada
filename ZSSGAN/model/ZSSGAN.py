@@ -2,6 +2,7 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath('../'))
 
+import random
 
 import torch
 import torchvision.transforms as transforms
@@ -171,7 +172,8 @@ class ZSSGAN(torch.nn.Module):
                                                       lambda_global=args.lambda_global, 
                                                       lambda_manifold=args.lambda_manifold, 
                                                       lambda_texture=args.lambda_texture,
-                                                      clip_model=model_name) 
+                                                      clip_model=model_name
+                                                      ) 
                                 for model_name in args.clip_models}
 
         self.clip_model_weights = {model_name: weight for model_name, weight in zip(args.clip_models, args.clip_model_weights)}
@@ -184,7 +186,7 @@ class ZSSGAN(torch.nn.Module):
         self.auto_layer_k     = args.auto_layer_k
         self.auto_layer_iters = args.auto_layer_iters
         
-        if args.target_img_list is not None:
+        if args.target_img_list is not None and args.randomize_from_n_target_pictures == False:
             self.set_img2img_direction()
 
         self.sfm = torch.nn.Softmax(dim=1)
@@ -332,6 +334,17 @@ class ZSSGAN(torch.nn.Module):
 
         trainable_img = self.generator_trainable(w_styles, input_is_latent=True, truncation=truncation, randomize_noise=randomize_noise)[0]
         
+        if self.args.target_img_list is not None and self.args.randomize_from_n_target_pictures:
+            with torch.no_grad():
+                sample_z  = torch.randn(self.args.img2img_batch, 512, device=self.device)
+                generated = self.generator_trainable([sample_z])[0]
+
+                for _, model in self.clip_loss_models.items():
+                    direction = model.compute_img2img_direction(generated, random.sample(self.args.target_img_list, self.args.img2img_batch))
+
+                    model.target_direction = direction
+            
+
         clip_loss = torch.sum(torch.stack([self.clip_model_weights[model_name] * self.clip_loss_models[model_name](frozen_img, self.source_class, trainable_img, self.target_class) for model_name in self.clip_model_weights.keys()]))
 
         return [frozen_img, trainable_img], clip_loss

@@ -312,7 +312,7 @@ class TrainOptions(object):
         self.parser.add_argument(
             "--randomize_from_n_target_pictures",
             type=bool,
-            default=True,
+            default=False,
             help="использовать случайные картинки из папки",
         )
 
