@@ -36,6 +36,34 @@ class TrainOptions(object):
             help="Strength of directional clip loss",
         )
 
+        self.parser.add_argument(
+            "--clip_iterations",
+            type=int,
+            default=1,
+            help="How many times to compute CLIP loss per step"
+        )
+
+        self.parser.add_argument(
+            "--dc_loss_iterations",
+            type=int,
+            default=0,
+            help="How many times to compute DC loss per step"
+        )
+
+        self.parser.add_argument(
+            "--dc_loss_weight",
+            type=int,
+            default=15000,
+            help="DC Loss weight"
+        )
+
+        self.parser.add_argument(
+            "--dc_loss_bypass_last_layers",
+            type=int,
+            default=2,
+            help="DC Loss bypass last layers"
+        )
+
         ######################################################################################################
         # Non direction losses are unused in the paper. They are left here for those who want to experiment. #
         ######################################################################################################

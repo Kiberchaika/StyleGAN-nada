@@ -100,8 +100,9 @@ class SG2Generator(torch.nn.Module):
         input_is_latent=False,
         input_is_s_code=False,
         noise=None,
-        randomize_noise=True):
-        return self.generator(styles, return_latents=return_latents, truncation=truncation, truncation_latent=self.mean_latent, noise=noise, randomize_noise=randomize_noise, input_is_latent=input_is_latent, input_is_s_code=input_is_s_code)
+        randomize_noise=True,
+        return_feats=False):
+        return self.generator(styles, return_latents=return_latents, truncation=truncation, truncation_latent=self.mean_latent, noise=noise, randomize_noise=randomize_noise, input_is_latent=input_is_latent, input_is_s_code=input_is_s_code, return_feats=return_feats)
 
 class SG2Discriminator(torch.nn.Module):
     def __init__(self, checkpoint_path, img_size=256, channel_multiplier=2, device='cuda:0'):
@@ -186,6 +187,10 @@ class ZSSGAN(torch.nn.Module):
         if args.target_img_list is not None:
             self.set_img2img_direction()
 
+        self.sfm = torch.nn.Softmax(dim=1)
+        self.sim = torch.nn.CosineSimilarity()
+        self.kl_loss = torch.nn.KLDivLoss()
+
     def set_img2img_direction(self):
         with torch.no_grad():
             sample_z  = torch.randn(self.args.img2img_batch, 512, device=self.device)
@@ -242,6 +247,58 @@ class ZSSGAN(torch.nn.Module):
         # chosen_layers.append(all_layers[1])
                 
         return chosen_layers
+
+    def compute_dist_consistency_loss(self,dist_consistency_loss=10000.0, bypass_last_layers=1):
+                # distance consistency loss
+        latent_size = 512
+        feat_const_batch = 7
+        with torch.set_grad_enabled(False):
+            z = torch.randn(feat_const_batch, latent_size, device=self.device)
+
+            # computing source distances
+            source_sample, feat_source = self.generator_frozen([z], return_feats=True)
+            
+            feat_ind = np.random.randint(1, len(feat_source) - bypass_last_layers, size=feat_const_batch)
+
+            dist_source = torch.zeros(
+                [feat_const_batch, feat_const_batch - 1]).cuda()
+
+            # iterating over different elements in the batch
+            for pair1 in range(feat_const_batch):
+                tmpc = 0
+                # comparing the possible pairs
+                for pair2 in range(feat_const_batch):
+                    if pair1 != pair2:
+                        anchor_feat = torch.unsqueeze(
+                            feat_source[feat_ind[pair1]][pair1].reshape(-1), 0)
+                        compare_feat = torch.unsqueeze(
+                            feat_source[feat_ind[pair1]][pair2].reshape(-1), 0)
+                        dist_source[pair1, tmpc] = self.sim(
+                            anchor_feat, compare_feat)
+                        tmpc += 1
+            dist_source = self.sfm(dist_source)
+
+        # computing distances among target generations
+        _, feat_target = self.generator_trainable([z], return_feats=True)
+        dist_target = torch.zeros(
+            [feat_const_batch, feat_const_batch - 1]).cuda()
+
+        # iterating over different elements in the batch
+        for pair1 in range(feat_const_batch):
+            tmpc = 0
+            for pair2 in range(feat_const_batch):  # comparing the possible pairs
+                if pair1 != pair2:
+                    anchor_feat = torch.unsqueeze(
+                        feat_target[feat_ind[pair1]][pair1].reshape(-1), 0)
+                    compare_feat = torch.unsqueeze(
+                        feat_target[feat_ind[pair1]][pair2].reshape(-1), 0)
+                    dist_target[pair1, tmpc] = self.sim(anchor_feat, compare_feat)
+                    tmpc += 1
+        dist_target = self.sfm(dist_target)
+        rel_loss = dist_consistency_loss * \
+            self.kl_loss(torch.log(dist_target), dist_source) # distance consistency loss 
+
+        return rel_loss
 
     def forward(
         self,

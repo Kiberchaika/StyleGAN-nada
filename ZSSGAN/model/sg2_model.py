@@ -534,9 +534,10 @@ class Generator(nn.Module):
         input_is_s_code=False,
         noise=None,
         randomize_noise=True,
+        return_feats=False,
     ):
         if not input_is_s_code:
-            return self.forward_with_w(styles, return_latents, inject_index, truncation, truncation_latent, input_is_latent, noise, randomize_noise)
+            return self.forward_with_w(styles, return_latents, inject_index, truncation, truncation_latent, input_is_latent, noise, randomize_noise, return_feats)
         
         return self.forward_with_s(styles, return_latents, noise, randomize_noise)
 
@@ -550,6 +551,7 @@ class Generator(nn.Module):
             input_is_latent=False,
             noise=None,
             randomize_noise=True,
+            return_feats=False,
         ):
             if not input_is_latent:
                 styles = [self.style(s) for s in styles]
@@ -590,9 +592,10 @@ class Generator(nn.Module):
 
                 latent = torch.cat([latent, latent2], 1)
 
+            feat_list = []
             out = self.input(latent)
             out = self.conv1(out, latent[:, 0], noise=noise[0])
-
+            feat_list.append(out)
             skip = self.to_rgb1(out, latent[:, 1])
 
             i = 1
@@ -600,8 +603,11 @@ class Generator(nn.Module):
                 self.convs[::2], self.convs[1::2], noise[1::2], noise[2::2], self.to_rgbs
             ):
                 out = conv1(out, latent[:, i], noise=noise1)
+                feat_list.append(out)
                 out = conv2(out, latent[:, i + 1], noise=noise2)
+                feat_list.append(out)
                 skip = to_rgb(out, latent[:, i + 2], skip)
+
 
                 i += 2
 
@@ -609,6 +615,9 @@ class Generator(nn.Module):
 
             if return_latents:
                 return image, latent
+                
+            elif return_feats:
+                return image, feat_list
 
             else:
                 return image, None

@@ -86,17 +86,39 @@ def train(args):
     for i in tqdm(range(args.iter)):
 
         net.train()
+        net.zero_grad()
 
         sample_z = mixing_noise(args.batch, 512, args.mixing, device)
 
-        [sampled_src, sampled_dst], loss = net(sample_z)
+        for clip_iter in range(1, args.clip_iterations):
+            [sampled_src, sampled_dst], loss = net(sample_z)
+            loss.backward()
 
-        net.zero_grad()
-        loss.backward()
+            # tqdm.write(f"Clip loss: {loss}")
+
+            del loss
+
+        # [sampled_src, sampled_dst], loss = net(sample_z)
+        # loss.backward()
+
+        # del loss
+
+        sum_dc_loss = 0.0
+        if args.dc_loss_iterations > 0:
+            for dc_loss_iter in range(0, args.dc_loss_iterations):
+                dc_loss = net.compute_dist_consistency_loss(float(args.dc_loss_weight) / float(args.dc_loss_iterations), args.dc_loss_bypass_last_layers)
+                dc_loss.backward() # distance consistency loss
+                sum_dc_loss += float(dc_loss)
+                del dc_loss
+
+        # tqdm.write(f"DC Loss: {sum_dc_loss}")
+
+
+        # del loss, dc_loss
 
         g_optim.step()
 
-        tqdm.write(f"Clip loss: {loss}")
+
 
         if i % args.output_interval == 0:
             net.eval()
