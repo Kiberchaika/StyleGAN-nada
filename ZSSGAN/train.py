@@ -86,12 +86,12 @@ def train(args):
     for i in tqdm(range(args.iter)):
 
         net.train()
-        net.zero_grad()
 
         sample_z = mixing_noise(args.batch, 512, args.mixing, device)
 
         for clip_iter in range(1, args.clip_iterations):
             [sampled_src, sampled_dst], loss = net(sample_z)
+            net.zero_grad()
             loss.backward()
 
             # tqdm.write(f"Clip loss: {loss}")
