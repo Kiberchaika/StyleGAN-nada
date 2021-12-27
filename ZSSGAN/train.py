@@ -32,9 +32,21 @@ import os
 import numpy as np
 
 import os, sys
+from subprocess import call, DEVNULL
+
+'''
 if sys.platform.startswith('win'):
-    output = os.popen('"{}" && set'.format("%ProgramFiles(x86)%/Microsoft Visual Studio/2017/Community/VC/Auxiliary/Build/vcvars64.bat")).read()
-    print(output)
+    #output = os.popen('"{}" && set'.format("%ProgramFiles(x86)%/Microsoft Visual Studio/2017/Community/VC/Auxiliary/Build/vcvars64.bat")).read()
+    output = os.popen('"{}" && set'.format("%ProgramFiles(x86)%/Microsoft Visual Studio/2019/Community/VC/Auxiliary/Build/vcvars64.bat")).read()
+
+    for line in output.splitlines():
+        pair = line.split("=", 1)
+        if(len(pair) >= 2):
+            os.environ[pair[0]] = pair[1]
+            #print(pair[0] + " = " + pair[1])
+    os.system("where cl.exe")
+    #print(output)
+#'''
 
 import torch
 
@@ -50,6 +62,8 @@ from utils.training_utils import mixing_noise
 
 from options.train_options import TrainOptions
 
+from id_loss import IDLoss
+
 #TODO convert these to proper args
 SAVE_SRC = False
 SAVE_DST = True
@@ -60,6 +74,9 @@ def train(args):
     # Set up networks, optimizers.
     print("Initializing networks...")
     net = ZSSGAN(args)
+
+    args.arcface_model_paths = "pretrained/model_ir_se50.pth"
+    id_loss = IDLoss(args).to(device).eval()
 
     g_reg_ratio = args.g_reg_every / (args.g_reg_every + 1) # using original SG2 params. Not currently using r1 regularization, may need to change.
 
@@ -113,8 +130,21 @@ def train(args):
 
         # tqdm.write(f"DC Loss: {sum_dc_loss}")
 
-
         # del loss, dc_loss
+
+        args.id_loss_iterations = 10
+        if args.id_loss_iterations > 0:
+            for id_loss_iter in range(0, args.id_loss_iterations):
+                z = torch.randn(1, 512, device=device)
+
+                x = net.generator_frozen([z], return_feats=False)
+                y = net.generator_trainable([z], return_feats=False)
+               
+                x_resized = id_loss.face_pool(x)
+                y_resized = id_loss.face_pool(y)
+
+                loss_id = id_loss(y_resized, x_resized) * 0.1 # opts.id_lambda
+                loss_id.backward() 
 
         g_optim.step()
 
