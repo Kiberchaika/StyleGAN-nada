@@ -64,6 +64,7 @@ from utils.training_utils import mixing_noise
 from options.train_options import TrainOptions
 
 from id_loss import IDLoss
+from landmarks_loss import LandmarksLoss
 
 #TODO convert these to proper args
 SAVE_SRC = False
@@ -79,6 +80,9 @@ def train(args):
 
     args.arcface_model_paths = "pretrained/model_ir_se50.pth"
     id_loss = IDLoss(args).to(device).eval()
+
+    args.facemesh_model_paths = "pretrained/facemesh.pth"
+    landmarks_loss = LandmarksLoss(args).to(device).eval()
 
     g_reg_ratio = args.g_reg_every / (args.g_reg_every + 1) # using original SG2 params. Not currently using r1 regularization, may need to change.
 
@@ -140,24 +144,35 @@ def train(args):
             for id_loss_iter in range(0, args.id_loss_iterations):
                 z = torch.randn(1, 512, device=device)
 
-                x, _ = net.generator_frozen([z], return_feats=False)
-                y, _ = net.generator_trainable([z], return_feats=False)
+                x, _ = net.generator_trainable([z], return_feats=False)
+                y, _ = net.generator_frozen([z], return_feats=False)
                
-                x_resized = id_loss.face_pool(x)
-                y_resized = id_loss.face_pool(y)
-
-                loss_id = id_loss(y_resized, x_resized) * args.id_lambda
+                loss_id = id_loss(x, y) * args.id_lambda
                 loss_id.backward() 
 
                 sum_id_loss += float(loss_id)
 
                 #print("loss_id: ", loss_id.item())
         
+
+        sum_landmarks_loss = 0.0
+        if args.landmarks_loss_iterations > 0:
+            for id_loss_iter in range(0, args.landmarks_loss_iterations):
+                z = torch.randn(1, 512, device=device)
+
+                x, _ = net.generator_trainable([z], return_feats=False)
+                y, _ = net.generator_frozen([z], return_feats=False)
+               
+                loss_landmarks = landmarks_loss(x, y) * args.landmarks_lambda
+                loss_landmarks.backward() 
+
+                sum_landmarks_loss += float(loss_landmarks)
+
+                #print("loss_landmarks: ", loss_landmarks.item())
         
-        
+
+
         g_optim.step()
-
-
 
         if i % args.output_interval == 0:
             net.eval()
@@ -189,6 +204,7 @@ def train(args):
             'sum_clip_loss': sum_clip_loss,
             'sum_dc_loss': sum_dc_loss,
             'sum_id_loss': sum_id_loss,
+            'sum_landmarks_loss': sum_landmarks_loss,
         }, step=i)
 
     for i in range(args.num_grid_outputs):

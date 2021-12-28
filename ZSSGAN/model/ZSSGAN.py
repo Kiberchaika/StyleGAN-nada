@@ -354,7 +354,7 @@ class ZSSGAN(torch.nn.Module):
                         encodings = self.img_encodings[idx]
                         direction = model.compute_img_encoding_direction(generated, encodings)
 
-                        model.target_directions_for_all_clip_images = None
+                        model.all_clip_embeddings = None
 
                         model.target_direction = direction
 
@@ -364,7 +364,7 @@ class ZSSGAN(torch.nn.Module):
                     generated = self.generator_trainable([sample_z])[0]
 
                     for _, model in self.clip_loss_models.items():
-                        model.target_directions_for_all_clip_images = self.img_encodings
+                        model.all_clip_embeddings = self.img_encodings
 
                         model.target_direction = None
                  

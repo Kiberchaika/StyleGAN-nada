@@ -59,17 +59,19 @@
                 "--save_interval", "100", 
                 "--source_class", "photo portrait", 
                 // "--target_class", "rough pencil sketch portrait",
-                "--style_img_dir", "datasets/tuneme",
+                "--style_img_dir", "datasets/charcoal_portrait",
                 "--img2img_batch", "1",
-                //"--randomize_from_n_target_pictures", "0"
-                "--clip_iterations", "2",
-                "--dc_loss_iterations", "5",
-                "--dc_loss_weight", "5000",
+                "--randomize_from_n_target_pictures", "true",
+                //"--use_similar_clip_target_pictures", "true",
+                "--clip_iterations", "1",
+                "--dc_loss_iterations", "1",
+                "--dc_loss_weight", "10000",
                 "--dc_loss_bypass_last_layers", "5",
                 "--id_loss_iterations", "10",
                 "--id_lambda", "1.0",
-                "--use_similar_clip_target_pictures", "1"
-                 ]
+                "--landmarks_loss_iterations", "10",
+                "--landmarks_lambda", "100.0",
+                ]
         },
         {
             "name": "Python: Current File",

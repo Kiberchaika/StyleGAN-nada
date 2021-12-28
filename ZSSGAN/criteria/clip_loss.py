@@ -44,7 +44,7 @@ class CLIPLoss(torch.nn.Module):
 
         self.target_direction      = None
         self.patch_text_directions = None
-        self.target_directions_for_all_clip_images = None
+        self.all_clip_embeddings = None
 
         self.patch_loss     = DirectionLoss(patch_loss_type)
         self.direction_loss = DirectionLoss(direction_loss_type)
@@ -200,14 +200,19 @@ class CLIPLoss(torch.nn.Module):
         edit_direction = (target_encoding - src_encoding)
         edit_direction /= edit_direction.clone().norm(dim=-1, keepdim=True)
 
-        if self.target_directions_for_all_clip_images is not None:
-            s1 = edit_direction.shape[0] 
-            s2 = self.target_directions_for_all_clip_images.shape[0]
+        if self.all_clip_embeddings is not None:
+            s1 = src_encoding.shape[0] 
+            s2 = self.all_clip_embeddings.shape[0]
             
-            t1 = self.target_directions_for_all_clip_images.repeat(s1 , 1)
-            t2 = edit_direction.repeat(s2, 1)
-            
-            l = self.direction_loss(t1, t2)
+            t1 = src_encoding.repeat(s2, 1)
+            t2 = self.all_clip_embeddings.repeat(s1 , 1)
+ 
+            all_clip_directions = (t1 - t2)
+            all_clip_directions /= all_clip_directions.clone().norm(dim=-1, keepdim=True)
+
+            edit_direction = edit_direction.repeat(s2, 1)
+       
+            l = self.direction_loss(edit_direction, all_clip_directions).mean()
             return l.min()
         elif self.target_direction is None:
             self.target_direction = self.compute_text_direction(source_class, target_class)

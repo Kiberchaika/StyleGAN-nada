@@ -331,6 +331,20 @@ class TrainOptions(object):
         )
 
         self.parser.add_argument(
+            "--landmarks_loss_iterations",
+            type=int,
+            default=0,
+            help="использовать landmarks loss",
+        )
+
+        self.parser.add_argument(
+            "--landmarks_lambda",
+            type=float,
+            default=0.1,
+            help="коэффициент landmarks loss",
+        )
+
+        self.parser.add_argument(
             "--use_similar_clip_target_pictures",
             type=bool,
             default=False,
