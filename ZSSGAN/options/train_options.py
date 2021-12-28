@@ -316,6 +316,30 @@ class TrainOptions(object):
             help="использовать случайные картинки из папки",
         )
 
+        self.parser.add_argument(
+            "--id_loss_iterations",
+            type=int,
+            default=0,
+            help="использовать id loss",
+        )
+
+        self.parser.add_argument(
+            "--id_lambda",
+            type=float,
+            default=0.1,
+            help="коэффициент id loss",
+        )
+
+        self.parser.add_argument(
+            "--use_similar_clip_target_pictures",
+            type=bool,
+            default=False,
+            help="использовать наиболее близку по клипу целевую картинку",
+        )
+
+
+
+
     def parse(self):
         opts = self.parser.parse_args()
 

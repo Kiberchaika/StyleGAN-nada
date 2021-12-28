@@ -8,7 +8,7 @@ class IDLoss(nn.Module):
         super(IDLoss, self).__init__()
         print('Loading ResNet ArcFace')
         self.facenet = Backbone(input_size=112, num_layers=50, drop_ratio=0.6, mode='ir_se')
-        self.facenet.load_state_dict(opts.arcface_model_paths)
+        self.facenet.load_state_dict(torch.load(opts.arcface_model_paths))
         self.face_pool = torch.nn.AdaptiveAvgPool2d((112, 112))
         self.facenet.eval()
         self.opts = opts
@@ -24,12 +24,12 @@ class IDLoss(nn.Module):
         x_feats = self.extract_feats(x)
         y_feats = self.extract_feats(y)  # Otherwise use the feature from there
         y_feats = y_feats.detach()
+
         loss = 0
-        sim_improvement = 0
         count = 0
+
         for i in range(n_samples):
-            diff_views = y_feats[i].dot(x_feats[i])
-            sim_improvement += float(diff_views)
+            loss += y_feats[i].dot(x_feats[i])
             count += 1
 
         return loss / count

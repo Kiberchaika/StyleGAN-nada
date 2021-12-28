@@ -44,6 +44,7 @@ class CLIPLoss(torch.nn.Module):
 
         self.target_direction      = None
         self.patch_text_directions = None
+        self.target_directions_for_all_clip_images = None
 
         self.patch_loss     = DirectionLoss(patch_loss_type)
         self.direction_loss = DirectionLoss(direction_loss_type)
@@ -75,6 +76,15 @@ class CLIPLoss(torch.nn.Module):
     def encode_images(self, images: torch.Tensor) -> torch.Tensor:
         images = self.preprocess(images).to(self.device)
         return self.model.encode_image(images)
+
+    def get_image_features_from_path(self, target_img: str, norm: bool = True) -> torch.Tensor:
+        img = self.clip_preprocess(Image.open(target_img)).unsqueeze(0).to(self.device)
+        image_features = self.encode_images(img)
+        
+        if norm:
+            image_features /= image_features.clone().norm(dim=-1, keepdim=True)
+
+        return image_features
 
     def encode_images_with_cnn(self, images: torch.Tensor) -> torch.Tensor:
         images = self.preprocess_cnn(images).to(self.device)
@@ -117,6 +127,19 @@ class CLIPLoss(torch.nn.Module):
         text_direction /= text_direction.norm(dim=-1, keepdim=True)
 
         return text_direction
+
+    def compute_img_encoding_direction(self, source_images: torch.Tensor, target_encoding: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+
+            src_encoding = self.get_image_features(source_images)
+            src_encoding = src_encoding.mean(dim=0, keepdim=True)
+            
+            target_encoding = target_encoding.mean(dim=0, keepdim=True)
+
+            direction = target_encoding - src_encoding
+            direction /= direction.norm(dim=-1, keepdim=True)
+
+        return direction
 
     def compute_img2img_direction(self, source_images: torch.Tensor, target_images: list) -> torch.Tensor:
         with torch.no_grad():
@@ -171,14 +194,23 @@ class CLIPLoss(torch.nn.Module):
             
     def clip_directional_loss(self, src_img: torch.Tensor, source_class: str, target_img: torch.Tensor, target_class: str) -> torch.Tensor:
 
-        if self.target_direction is None:
-            self.target_direction = self.compute_text_direction(source_class, target_class)
-
         src_encoding    = self.get_image_features(src_img)
         target_encoding = self.get_image_features(target_img)
 
         edit_direction = (target_encoding - src_encoding)
         edit_direction /= edit_direction.clone().norm(dim=-1, keepdim=True)
+
+        if self.target_directions_for_all_clip_images is not None:
+            s1 = edit_direction.shape[0] 
+            s2 = self.target_directions_for_all_clip_images.shape[0]
+            
+            t1 = self.target_directions_for_all_clip_images.repeat(s1 , 1)
+            t2 = edit_direction.repeat(s2, 1)
+            
+            l = self.direction_loss(t1, t2)
+            return l.min()
+        elif self.target_direction is None:
+            self.target_direction = self.compute_text_direction(source_class, target_class)
         
         return self.direction_loss(edit_direction, self.target_direction).mean()
 

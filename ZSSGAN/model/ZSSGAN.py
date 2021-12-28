@@ -189,6 +189,14 @@ class ZSSGAN(torch.nn.Module):
         if args.target_img_list is not None and args.randomize_from_n_target_pictures == False:
             self.set_img2img_direction()
 
+        self.img_encodings = []
+        if args.target_img_list is not None:
+            for target_img in args.target_img_list:
+                for _, model in self.clip_loss_models.items():
+                    encoding = model.get_image_features_from_path(target_img)
+                self.img_encodings.append(encoding)
+        self.img_encodings = torch.cat(self.img_encodings, axis=0)
+ 
         self.sfm = torch.nn.Softmax(dim=1)
         self.sim = torch.nn.CosineSimilarity()
         self.kl_loss = torch.nn.KLDivLoss()
@@ -253,7 +261,7 @@ class ZSSGAN(torch.nn.Module):
     def compute_dist_consistency_loss(self,dist_consistency_loss=10000.0, bypass_last_layers=1):
                 # distance consistency loss
         latent_size = 512
-        feat_const_batch = 7
+        feat_const_batch = 15
         with torch.set_grad_enabled(False):
             z = torch.randn(feat_const_batch, latent_size, device=self.device)
 
@@ -334,16 +342,33 @@ class ZSSGAN(torch.nn.Module):
 
         trainable_img = self.generator_trainable(w_styles, input_is_latent=True, truncation=truncation, randomize_noise=randomize_noise)[0]
         
-        if self.args.target_img_list is not None and self.args.randomize_from_n_target_pictures:
-            with torch.no_grad():
-                sample_z  = torch.randn(self.args.img2img_batch, 512, device=self.device)
-                generated = self.generator_trainable([sample_z])[0]
-
-                for _, model in self.clip_loss_models.items():
-                    direction = model.compute_img2img_direction(generated, random.sample(self.args.target_img_list, self.args.img2img_batch))
-
-                    model.target_direction = direction
+        if self.args.target_img_list is not None:
             
+            if self.args.randomize_from_n_target_pictures:
+                with torch.no_grad():
+                    sample_z  = torch.randn(self.args.img2img_batch, 512, device=self.device)
+                    generated = self.generator_trainable([sample_z])[0]
+
+                    for _, model in self.clip_loss_models.items():
+                        idx = torch.randint(self.img_encodings.shape[0],(self.args.img2img_batch,))
+                        encodings = self.img_encodings[idx]
+                        direction = model.compute_img_encoding_direction(generated, encodings)
+
+                        model.target_directions_for_all_clip_images = None
+
+                        model.target_direction = direction
+
+            elif self.args.use_similar_clip_target_pictures:
+                with torch.no_grad():
+                    sample_z  = torch.randn(self.args.img2img_batch, 512, device=self.device)
+                    generated = self.generator_trainable([sample_z])[0]
+
+                    for _, model in self.clip_loss_models.items():
+                        model.target_directions_for_all_clip_images = self.img_encodings
+
+                        model.target_direction = None
+                 
+
 
         clip_loss = torch.sum(torch.stack([self.clip_model_weights[model_name] * self.clip_loss_models[model_name](frozen_img, self.source_class, trainable_img, self.target_class) for model_name in self.clip_model_weights.keys()]))
 

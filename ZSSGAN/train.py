@@ -49,6 +49,7 @@ if sys.platform.startswith('win'):
 #'''
 
 import torch
+import wandb
 
 from tqdm import tqdm
 
@@ -70,6 +71,7 @@ SAVE_DST = True
 
 
 def train(args):
+    wandb.init(project="stylegan-nada")
 
     # Set up networks, optimizers.
     print("Initializing networks...")
@@ -106,13 +108,14 @@ def train(args):
 
         sample_z = mixing_noise(args.batch, 512, args.mixing, device)
 
+        sum_clip_loss = 0.0
         for clip_iter in range(0, args.clip_iterations):
             [sampled_src, sampled_dst], loss = net(sample_z)
             net.zero_grad()
-            loss.backward()
+            loss.backward( retain_graph=True)
 
             # tqdm.write(f"Clip loss: {loss}")
-
+            sum_clip_loss += float(loss)
             del loss
 
         # [sampled_src, sampled_dst], loss = net(sample_z)
@@ -132,20 +135,26 @@ def train(args):
 
         # del loss, dc_loss
 
-        args.id_loss_iterations = 10
+        sum_id_loss = 0.0
         if args.id_loss_iterations > 0:
             for id_loss_iter in range(0, args.id_loss_iterations):
                 z = torch.randn(1, 512, device=device)
 
-                x = net.generator_frozen([z], return_feats=False)
-                y = net.generator_trainable([z], return_feats=False)
+                x, _ = net.generator_frozen([z], return_feats=False)
+                y, _ = net.generator_trainable([z], return_feats=False)
                
                 x_resized = id_loss.face_pool(x)
                 y_resized = id_loss.face_pool(y)
 
-                loss_id = id_loss(y_resized, x_resized) * 0.1 # opts.id_lambda
+                loss_id = id_loss(y_resized, x_resized) * args.id_lambda
                 loss_id.backward() 
 
+                sum_id_loss += float(loss_id)
+
+                #print("loss_id: ", loss_id.item())
+        
+        
+        
         g_optim.step()
 
 
@@ -175,6 +184,12 @@ def train(args):
                 },
                 f"{ckpt_dir}/{str(i).zfill(6)}.pt",
             )
+
+        wandb.log({
+            'sum_clip_loss': sum_clip_loss,
+            'sum_dc_loss': sum_dc_loss,
+            'sum_id_loss': sum_id_loss,
+        }, step=i)
 
     for i in range(args.num_grid_outputs):
         net.eval()
